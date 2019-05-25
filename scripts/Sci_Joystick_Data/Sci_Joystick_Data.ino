@@ -22,7 +22,7 @@ ros::NodeHandle nh;
 std_msgs::String str_msg;
 
 ros::Publisher chatter("/scijoy", &str_msg);
-//ros::Subscriber<str_msg> sub("/scijoy", &str_msg);
+ros::Subscriber<std_msgs::Strings> sub("/scijoy", &messageCb);
 
 char data[16] = "";
 uint16_t period = 1000;
@@ -59,19 +59,19 @@ int triangleSwitch[] = {29,30,31,32,33};
 //Feedback triangle LED's yellow x5
 int triangleLed[] = {34,35,36,37,38};
 
-//Special Button 
-int bigButton = 39;
+//Window Switches = {left dir, right dir} 
+int windowLeft[] = {46,47};
+int windowRight[] = {48,49};
 
 //Joystick = {Up,Down,Left,Right}
 int joy[] = {40,41,42,43};
 
+//Special Button 
+int bigButton = 39;
+
 //Status Led's
 int powerOn = 44;
 int rosConnection =45;
-
-//Window Switches = {left dir, right dir} 
-int windowLeft[] = {46,47};
-int windowRight[] = {48,49};
 
 //RGB led strip
 int rgbStrip = 50;
@@ -131,14 +131,14 @@ void setup()
 }
 
 int arrToInt(char arr[],int arrSize){
-  arrSize--;
+  int k=0;
   int sum=0;
-  while(arrSize>0){
+  while(k<arrSize--){
     if(int(arr[arrSize]) == 1){
       sum++;
     }
     sum = sum<<1;
-    arrSize--;
+    k++;
   }
   if(int(arr[arrSize]) == 1){
     sum++;
@@ -147,15 +147,17 @@ int arrToInt(char arr[],int arrSize){
 }
 
 void intToArray(int arr[],int num,int arrSize){
-  int i=0;
-  while(i<arrSize){
-    int bit = (num>>i) & 1;
+  int i=arrSize--;
+  int shift=0;
+  while(i>=0){
+    int bit = (num>>shift) & 1;
     if (bit == 1){
       arr[i] = 1;
     }else{
       arr[i] = 0;
     }
-    i++;
+    i--;
+    shift++;
   }
 }
 
@@ -189,7 +191,7 @@ void loop()
   readValArray(triangleSwitch,5);
   readValArray(windowLeft,2);
   readValArray(windowRight,2);
-  readValArray(joy,2);
+  readValArray(joy,4);
   
   *currentButton = (char)digitalRead(bigButton);
   strcat(binaryArray,currentButton);
