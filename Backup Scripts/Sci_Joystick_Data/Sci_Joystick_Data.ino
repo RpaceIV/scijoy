@@ -21,15 +21,22 @@ ros::NodeHandle nh;
 // Make a chatter publisher
 std_msgs::String str_msg;
 
+void messageCb(const std_msgs::String& val){
+  Serial.println(val.data);
+}
+
 ros::Publisher chatter("/scijoy", &str_msg);
-//ros::Subscriber<str_msg> sub("/scijoy", &str_msg);
+ros::Subscriber<std_msgs::String> sub("/scijoy", &messageCb);
 
 char data[16] = "";
 uint16_t period = 1000;
 uint32_t last_time = 0;
-String numString = "";
+String numSendString = "";
+String numReturnString = "";
+
 char dummy[10]="1111111111";
 
+int currentBit;
 char binaryArray[25];
 char *currentButton;
 char *currentNum;
@@ -37,41 +44,41 @@ char *currentPot;
 
 //Number scheme starts from left to right
 //Potentiometers x4
-int potPin[] = {A0,A1,A2,A3}; 
+int potPin[] = {A9,A11,A13,A15}; 
 
 //=======/Wood Plate/========//
 //Flick Switchs x10 
-int flickSwitch[] = {51,2,3,4,5,6,7,8,9,52}; 
+int flickSwitch[] = {A0,A2,A4,A6,53,4,6,8,11,13}; 
 
 //Feedback LED's red x10
-int flickLed[] = {11,12,13,14,15,16,17,18,19,20};
+int flickLed[] = {A1,A3,A5,A7,52,3,5,7,9,12};
 
 //=======/Angled Plate/========//
 //Square Buttons x4 = {topLeftSquare,topRightSquare,bottomLeftSquare,bottomRightSquare}
-int squareSwitch[] = {21,22,23,24};
+int squareSwitch[] = {32,49,47,45};
 
 //Feedback square LED's white x4
-int squareLed[] = {25,26,27,28}; 
+int squareLed[] = {50,48,46,44}; 
 
 //Triangle Buttons x5 
-int triangleSwitch[] = {29,30,31,32,33};
+int triangleSwitch[] = {35,37,39,41,43};
 
 //Feedback triangle LED's yellow x5
-int triangleLed[] = {34,35,36,37,38};
-
-//Special Button 
-int bigButton = 39;
-
-//Joystick = {Up,Down,Left,Right}
-int joy[] = {40,41,42,43};
-
-//Status Led's
-int powerOn = 44;
-int rosConnection =45;
+int triangleLed[] = {34,36,38,40,42};
 
 //Window Switches = {left dir, right dir} 
-int windowLeft[] = {46,47};
-int windowRight[] = {48,49};
+int rockerLeft[] = {30,28};
+int rockerRight[] = {33,31};
+
+//Joystick = {Up,Down,Left,Right}
+int joy[] = {0,14,1,2};
+
+//Special Button 
+int bigButton = 17;
+
+//Status Led's
+int powerOn = 16;
+int rosConnection =15;
 
 //RGB led strip
 int rgbStrip = 50;
@@ -101,29 +108,29 @@ void setup()
   Serial.println(nh.getHardware()->getLocalIP());
   
   nh.advertise(chatter);
-//  nh.subscribe(sub);
+  nh.subscribe(sub);
   
   for(int i=0;i<10;i++){
-    pinMode(flickSwitch[i], INPUT);
+    pinMode(flickSwitch[i], INPUT_PULLUP);
     pinMode(flickLed[i], OUTPUT);
   }
   for(int i=0;i<4;i++){
-    pinMode(squareSwitch[i], INPUT);
+    pinMode(squareSwitch[i], INPUT_PULLUP);
     pinMode(squareLed[i], OUTPUT);
   }
   for(int i=0;i<5;i++){
-    pinMode(triangleSwitch[i], INPUT);
+    pinMode(triangleSwitch[i], INPUT_PULLUP);
     pinMode(triangleLed[i], OUTPUT);
   }
   for(int i=0;i<2;i++){
-    pinMode(windowLeft[i], INPUT);
-    pinMode(windowRight[i], INPUT);
+    pinMode(rockerLeft[i], INPUT_PULLUP);
+    pinMode(rockerRight[i], INPUT_PULLUP);
   }
   for(int i=0;i<4;i++){
-    pinMode(joy[i], INPUT);
+    pinMode(joy[i], INPUT_PULLUP);
   }
 
-  pinMode(bigButton, INPUT);
+  pinMode(bigButton, INPUT_PULLUP);
   pinMode(rgbStrip, OUTPUT);
   pinMode(powerOn, OUTPUT);
   pinMode(rosConnection, OUTPUT);
@@ -131,14 +138,14 @@ void setup()
 }
 
 int arrToInt(char arr[],int arrSize){
-  arrSize--;
+  int k=0;
   int sum=0;
-  while(arrSize>0){
+  while(k<arrSize--){
     if(int(arr[arrSize]) == 1){
       sum++;
     }
     sum = sum<<1;
-    arrSize--;
+    k++;
   }
   if(int(arr[arrSize]) == 1){
     sum++;
@@ -147,21 +154,29 @@ int arrToInt(char arr[],int arrSize){
 }
 
 void intToArray(int arr[],int num,int arrSize){
-  int i=0;
-  while(i<arrSize){
-    int bit = (num>>i) & 1;
+  int i=arrSize--;
+  int shift=0;
+  while(i>=0){
+    int bit = (num>>shift) & 1;
     if (bit == 1){
       arr[i] = 1;
     }else{
       arr[i] = 0;
     }
-    i++;
+    i--;
+    shift++;
   }
 }
 
 void readValArray(int arr[], int arrSize){
   for(int i=0;i<arrSize;i++){
-    *currentButton = (char)digitalRead(arr[i]);
+    if(digitalRead(arr[i])==1){
+      currentBit = 0;
+    }else{
+      currentBit = 1;
+    }
+    
+    *currentButton = (char)currentBit;
     strcat(binaryArray,currentButton);
   }
 }
@@ -182,21 +197,23 @@ void updateLights(char binaryArr[],int ledArr[], int arrSize){
 void loop()
 {
   Serial.println("hello");
+  pinMode(powerOn,HIGH);
+  pinMode(rosConnection,HIGH);
   //============/Writing to Serial for Python to send to ROS/============/
   //Digital
   readValArray(flickSwitch,10);
   readValArray(squareSwitch,4);
   readValArray(triangleSwitch,5);
-  readValArray(windowLeft,2);
-  readValArray(windowRight,2);
-  readValArray(joy,2);
+  readValArray(rockerLeft,2);
+  readValArray(rockerRight,2);
+  readValArray(joy,4);
   
   *currentButton = (char)digitalRead(bigButton);
   strcat(binaryArray,currentButton);
   
-  numString = String(arrToInt(binaryArray,25));
+  numSendString = String(arrToInt(binaryArray,25));
   for(int i=0;i<9; i++){
-    *currentNum = numString[i];
+    *currentNum = numSendString[i];
     strcat(data,currentNum);
   }
 //  Serial.println(data);
@@ -232,7 +249,8 @@ void loop()
   Serial.println(data);
   
   if (nh.connected()){
-    Serial.println("Connected");
+      pinMode(rosConnection,HIGH);
+    Serial.println(data);
     str_msg.data = data;
     chatter.publish( &str_msg );
   } else {
@@ -242,7 +260,11 @@ void loop()
   delay(100);
 
   //============/Reading Serial to see if ROS was working/============/
-  updateLights(dummy,flickLed,10);
+
+//  returnNum = som/ething[0];
+  
+//  intToArray(int arr[],returnNum,25);
+//  updateLights(dummy,flickLed,10);
   
 
 }
